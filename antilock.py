@@ -139,7 +139,7 @@ pauseButton = Button(win, text="Pause for 5 minutes", command=pause)
 infoLabel = Label(win, text="AntiLock helped you: " + str(counter) + " time(s)!")
 
 # Set the size of the window, just a tiny one
-win.geometry("250x90+500+500")
+win.geometry("280x90+500+500")
 
 
 # Define a function for quit the window
