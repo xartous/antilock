@@ -21,6 +21,8 @@ from threading import Event
 from time import sleep
 
 counter: int = 0
+paused: bool = False
+
 
 # Reads the counter of how many times the antilock prevented lock-in :)
 def readCounter():
@@ -33,6 +35,7 @@ def readCounter():
         f = open("antilock.cfg", "w")
         f.close()
 
+
 # Updates the antilock prevention counter in the file
 def updateCounter():
     global counter
@@ -44,12 +47,14 @@ def updateCounter():
     except FileNotFoundError:
         print("File not found!")
 
+
 # The Windows structure to handle the last activity time in Windows
 class LASTINPUTINFO(Structure):
     _fields_ = [
         ('cbSize', c_uint),
         ('dwTime', c_int),
     ]
+
 
 # Reads the activity type in Windows (from Windows Kernel32 services)
 # returns the number of seconds
@@ -62,10 +67,12 @@ def get_idle_duration():
     else:
         return 0
 
+
 # Prevents lock-in if idle for more than 10 seconds
 # updates the counter in the file
 # reacts on the quit event
-def idleantilock(event):
+def idleantilock(event, pauseEvent):
+    global paused
     while True:
         duration = str(get_idle_duration())
         print('User idle for seconds.' + duration)
@@ -76,6 +83,11 @@ def idleantilock(event):
             sleep(5)
             updateCounter()
         sleep(1)
+        if pauseEvent.is_set():
+            while paused:
+                sleep(1)
+            else:
+                sleep(0)
 
         if event.is_set():
             break
@@ -88,14 +100,28 @@ win = Tk()
 
 # Quit/stop event
 stopEvent = Event()
+pauseEvent = Event()
 
-antilockerThread = Thread(target=idleantilock, args=(stopEvent,))
+antilockerThread = Thread(target=idleantilock, args=(stopEvent, pauseEvent))
+
 
 # Quit info message, stops the window and the thread
 def byebye():
     messagebox.showinfo("Quitting", "AntiLock says bye bye!")
     win.destroy()
     stopEvent.set()
+
+
+# Quit info message, stops the window and the thread
+def pause():
+    global paused
+    pauseEvent.set()
+    if not paused:
+        pauseButton.config(text="Resume")
+        paused = True
+    else:
+        pauseButton.config(text="Pause for 5 minutes")
+        paused = False
 
 
 win.title("AntiLock!")
@@ -106,12 +132,14 @@ except Exception:
 
 # Quit button on the small UX
 quitButton = Button(win, text="Quit", command=byebye)
+# Pause button on the small UX
+pauseButton = Button(win, text="Pause for 5 minutes", command=pause)
 
 # Label on the small UX to indicate the number of antilocks :)
 infoLabel = Label(win, text="AntiLock helped you: " + str(counter) + " time(s)!")
 
 # Set the size of the window, just a tiny one
-win.geometry("250x45+500+500")
+win.geometry("250x90+500+500")
 
 
 # Define a function for quit the window
@@ -138,11 +166,13 @@ def hide_window():
     icon = pystray.Icon("name", image, "AntiLock!", menu)
     icon.run()
 
+
 # Start the antilock thread
 antilockerThread.start()
 readCounter()
 infoLabel.config(text="AntiLock helped you: " + str(counter) + " time(s)!")
 quitButton.pack()
+pauseButton.pack()
 infoLabel.pack()
 
 # Hide by default
